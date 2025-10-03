@@ -1,0 +1,9 @@
+# Core dependencies
+openai
+openai-agents
+sendgrid
+python-dotenv
+
+# Web framework
+flask>=2.3.0
+flask-cors>=4.0.0
