@@ -16,7 +16,7 @@ a prompt. This helps the LLM know where to lay focus, considering what is being 
 import pandas as pd
 from pyvis.network import Network
 from sklearn.metrics.pairwise import cosine_similarity
-from youtube_transcript_api import YouTubeTranscriptApi
+# from youtube_transcript_api import YouTubeTranscriptApi
 from newspaper import Article
 from urllib.parse import urlparse
 import requests
