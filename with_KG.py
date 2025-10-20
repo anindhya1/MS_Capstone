@@ -7,6 +7,7 @@ from rouge_score import rouge_scorer
 from bert_score import BERTScorer
 
 import networkx as nx
+import matplotlib.pyplot as plt
 from sklearn.metrics.pairwise import cosine_similarity
 from sentence_transformers import SentenceTransformer
 from keybert import KeyBERT
@@ -26,6 +27,7 @@ def extract_key_phrases(content, top_n=50):
 
 def generate_knowledge_graph(data):
     """Generate and return the knowledge graph."""
+    print("I'm in the graph function")
     G = nx.Graph()
     key_phrases = []
     phrase_to_source = {}
@@ -56,6 +58,19 @@ def generate_knowledge_graph(data):
         for phrase_j, score in sorted_scores:
             if score > threshold:
                 G.add_edge(phrase_i, phrase_j)
+        # --- Visualization code ---
+        plt.figure(figsize=(12, 12))  # Set the size of the figure for better readability
+
+        # Use a layout algorithm to position the nodes
+        pos = nx.spring_layout(G, k=0.15, iterations=20)
+
+        # Draw the nodes, edges, and labels
+        nx.draw(G, pos, with_labels=True, node_color='skyblue', node_size=1500, edge_color='gray', font_size=8)
+
+        # Add a title and display the plot
+        plt.title("Knowledge Graph Visualization")
+        plt.show()
+        # --- End of visualization code ---
 
     return G
 
@@ -99,12 +114,12 @@ summaries = ds_train[:3]['summary_text']  # The summary text
 responses = []
 for chapter in chapters:
 
+    generate_knowledge_graph(chapter)
 
-
-    prompt = (
-        "You are a summary generator. I would like you to generate a summary out of the following content: "
-        f"{chapter}")
-    responses.append(generate_summaries_mistral(prompt))
+    # prompt = (
+    #     "You are a summary generator. I would like you to generate a summary out of the following content: "
+    #     f"{chapter}")
+    # responses.append(generate_summaries_mistral(prompt))
 
 
 # # Get the raw data (which are JSON strings)
@@ -129,16 +144,16 @@ for chapter in chapters:
 #           "out of it."
 #           "The ")
 #
-predictions = responses
-
-scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rougeL'], use_stemmer=True)
-bert_scorer = BERTScorer(model_type='bert-base-uncased')
-
-for i, (pred, ref) in enumerate(zip(predictions, summaries)):
-    scores = scorer.score(ref, pred)
-    P, R, F1 = bert_scorer.score([ref], [pred])
-    print(f"\nSummary {i+1}:")
-    print(f"  ROUGE-1: {scores['rouge1'].fmeasure:.4f}")
-    print(f"  ROUGE-2: {scores['rouge2'].fmeasure:.4f}")
-    print(f"  ROUGE-L: {scores['rougeL'].fmeasure:.4f}")
-    print(f"  BERTScore Precision: {P.mean():.4f}, Recall: {R.mean():.4f}, F1: {F1.mean():.4f}")
+# predictions = responses
+#
+# scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rougeL'], use_stemmer=True)
+# bert_scorer = BERTScorer(model_type='bert-base-uncased')
+#
+# for i, (pred, ref) in enumerate(zip(predictions, summaries)):
+#     scores = scorer.score(ref, pred)
+#     P, R, F1 = bert_scorer.score([ref], [pred])
+#     print(f"\nSummary {i+1}:")
+#     print(f"  ROUGE-1: {scores['rouge1'].fmeasure:.4f}")
+#     print(f"  ROUGE-2: {scores['rouge2'].fmeasure:.4f}")
+#     print(f"  ROUGE-L: {scores['rougeL'].fmeasure:.4f}")
+#     print(f"  BERTScore Precision: {P.mean():.4f}, Recall: {R.mean():.4f}, F1: {F1.mean():.4f}")
