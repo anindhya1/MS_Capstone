@@ -1,3 +1,24 @@
+# import os
+# os.environ["TOKENIZERS_PARALLELISM"] = "false"
+# os.environ["OMP_NUM_THREADS"] = "1"
+# os.environ["MKL_NUM_THREADS"] = "1"
+# os.environ["OPENBLAS_NUM_THREADS"] = "1"
+# os.environ["VECLIB_MAXIMUM_THREADS"] = "1"   # macOS Accelerate
+# # LAST RESORT: uncomment only if the rest doesn’t fix it
+# # os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+# os.environ["PYTHONFAULTHANDLER"] = "1"       # helpful if it still crashes
+
+# Optional last resort (see below): os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
+# 1) Heavy ML stack first
+from sentence_transformers import SentenceTransformer
+from keybert import KeyBERT
+
+# 2) Then the rest
+import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
+import matplotlib.pyplot as plt
+
 import json
 from http.client import responses
 
@@ -5,18 +26,15 @@ import requests
 from datasets import load_dataset
 from rouge_score import rouge_scorer
 from bert_score import BERTScorer
-
 import networkx as nx
-import matplotlib.pyplot as plt
-from sklearn.metrics.pairwise import cosine_similarity
-from sentence_transformers import SentenceTransformer
-from keybert import KeyBERT
+import sacrebleu
 
 
+print("Done importing!")
 # Initialize models
 model = SentenceTransformer('all-MiniLM-L6-v2')
-keybert_model = KeyBERT(model='all-MiniLM-L6-v2')
-
+keybert_model = KeyBERT(model=model)
+print("Done loading models!")
 
 # Helper function to extract key phrases
 def extract_key_phrases(content, top_n=50):
@@ -52,25 +70,25 @@ def generate_knowledge_graph(data):
         similarity_scores = [
             (key_phrases[j], similarity_matrix[i][j])
             for j in range(len(key_phrases))
-            if i != j and phrase_to_source[phrase_i] != phrase_to_source[key_phrases[j]]
+            # if i != j and phrase_to_source[phrase_i] != phrase_to_source[key_phrases[j]]
         ]
         sorted_scores = sorted(similarity_scores, key=lambda x: x[1], reverse=True)[:3]  # Top 3 connections
         for phrase_j, score in sorted_scores:
             if score > threshold:
                 G.add_edge(phrase_i, phrase_j)
-        # --- Visualization code ---
-        plt.figure(figsize=(12, 12))  # Set the size of the figure for better readability
-
-        # Use a layout algorithm to position the nodes
-        pos = nx.spring_layout(G, k=0.15, iterations=20)
-
-        # Draw the nodes, edges, and labels
-        nx.draw(G, pos, with_labels=True, node_color='skyblue', node_size=1500, edge_color='gray', font_size=8)
-
-        # Add a title and display the plot
-        plt.title("Knowledge Graph Visualization")
-        plt.show()
-        # --- End of visualization code ---
+        # # --- Visualization code ---
+        # plt.figure(figsize=(12, 12))  # Set the size of the figure for better readability
+        #
+        # # Use a layout algorithm to position the nodes
+        # pos = nx.spring_layout(G, k=0.15, iterations=20)
+        #
+        # # Draw the nodes, edges, and labels
+        # nx.draw(G, pos, with_labels=True, node_color='skyblue', node_size=1500, edge_color='gray', font_size=8)
+        #
+        # # Add a title and display the plot
+        # plt.title("Knowledge Graph Visualization")
+        # plt.show()
+        # # --- End of visualization code ---
 
     return G
 
@@ -114,12 +132,17 @@ summaries = ds_train[:3]['summary_text']  # The summary text
 responses = []
 for chapter in chapters:
 
-    generate_knowledge_graph(chapter)
+    G = generate_knowledge_graph(chapter)
 
-    # prompt = (
-    #     "You are a summary generator. I would like you to generate a summary out of the following content: "
-    #     f"{chapter}")
-    # responses.append(generate_summaries_mistral(prompt))
+    print(G.nodes)
+    print(G.edges)
+
+    prompt = (
+        "You are a summary generator. I would like you to generate a summary out of the following content: "
+        f"{chapter}"
+        f"Utilize this graph {G} to improve response. The graph nodes represent the topics you must pay attention to."
+    )
+    responses.append(generate_summaries_mistral(prompt))
 
 
 # # Get the raw data (which are JSON strings)
@@ -144,16 +167,18 @@ for chapter in chapters:
 #           "out of it."
 #           "The ")
 #
-# predictions = responses
-#
-# scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rougeL'], use_stemmer=True)
-# bert_scorer = BERTScorer(model_type='bert-base-uncased')
-#
-# for i, (pred, ref) in enumerate(zip(predictions, summaries)):
-#     scores = scorer.score(ref, pred)
-#     P, R, F1 = bert_scorer.score([ref], [pred])
-#     print(f"\nSummary {i+1}:")
-#     print(f"  ROUGE-1: {scores['rouge1'].fmeasure:.4f}")
-#     print(f"  ROUGE-2: {scores['rouge2'].fmeasure:.4f}")
-#     print(f"  ROUGE-L: {scores['rougeL'].fmeasure:.4f}")
-#     print(f"  BERTScore Precision: {P.mean():.4f}, Recall: {R.mean():.4f}, F1: {F1.mean():.4f}")
+predictions = responses
+
+scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rougeL'], use_stemmer=True)
+bert_scorer = BERTScorer(model_type='bert-base-uncased')
+
+for i, (pred, ref) in enumerate(zip(predictions, summaries)):
+    scores = scorer.score(ref, pred)
+    P, R, F1 = bert_scorer.score([ref], [pred])
+    bleu = sacrebleu.corpus_bleu([pred], [[ref]])
+    print(f"\nSummary {i+1}:")
+    print(f"  ROUGE-1: {scores['rouge1'].fmeasure:.4f}")
+    print(f"  ROUGE-2: {scores['rouge2'].fmeasure:.4f}")
+    print(f"  ROUGE-L: {scores['rougeL'].fmeasure:.4f}")
+    print(f"  BERTScore Precision: {P.mean():.4f}, Recall: {R.mean():.4f}, F1: {F1.mean():.4f}")
+    print(f"Paragraph BLEU = {bleu.score:.2f}")
