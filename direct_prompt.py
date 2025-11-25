@@ -79,7 +79,7 @@ predictions = responses
 r_scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rougeL'], use_stemmer=True)
 bert_scorer = BERTScorer(model_type='bert-base-uncased')
 
-
+print("Direct Prompting Evaluation Results:")
 for i, (pred, ref) in enumerate(zip(predictions, summaries)):
     scores = r_scorer.score(ref, pred)
     P, R, F1 = bert_scorer.score([ref], [pred])
